@@ -143,6 +143,8 @@ class DiffusionNet(nn.Module):
                 ),
             }
         )
+        
+        
 
     def forward(self, x, timesteps, labels=None):
 

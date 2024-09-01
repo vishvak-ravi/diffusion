@@ -90,9 +90,7 @@ class Downsample(nn.Module):  # PP version uses a FIR filter...
     def __init__(self, ch_in, ch_out, with_conv: bool, input_img_size: int = None):
         super().__init__()
         self.with_conv = with_conv
-        padding = (
-            determine_padding(input_img_size) if input_img_size is not None else (0, 0)
-        )
+        padding = (1, 1)
         self.down = (
             DDPMConv3x3(channel_in=ch_in, channel_out=ch_out, stride=2, padding=padding)
             if with_conv
