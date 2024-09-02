@@ -23,9 +23,7 @@ class DiffusionNet(nn.Module):
         self.skip_rescale = config.skip_rescale
         self.conv_shortcut = config.conv_shortcut
         self.down_with_conv = config.down_with_conv
-
-        if config.data == "mnist":
-            self.img_channels = 1
+        self.img_channels = config.img_channels
 
         if config.act == "silu":
             self.act = nn.SiLU()
@@ -143,8 +141,8 @@ class DiffusionNet(nn.Module):
                 ),
             }
         )
-        
-        
+
+        self.final_conv = DDPMConv3x3(self.nf, self.img_channels)
 
     def forward(self, x, timesteps, labels=None):
 
@@ -180,4 +178,6 @@ class DiffusionNet(nn.Module):
             if i_level != self.num_resolutions - 2:
                 h = self.upsampler["upsamplers"][i_level](h)
 
-        return h
+        h = self.final_conv(h)
+
+        return h[:, :, 2:30, 2:30]

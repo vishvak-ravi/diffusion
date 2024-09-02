@@ -5,8 +5,7 @@ from torchvision.datasets import CIFAR10, MNIST
 from torchvision.transforms import Compose, ToTensor, Normalize
 from torch.utils.data import DataLoader
 from torch.optim.optimizer import Optimizer
-from torch.optim import AdamW
-
+from torch.optim import AdamW, Adam
 from models.losses import EDMLoss
 
 
@@ -19,6 +18,12 @@ class Config:
                     json.dumps(data), object_hook=lambda d: SimpleNamespace(**d)
                 ).__dict__
             )
+
+            if self.data == "mnist":
+                print("mnist")
+                self.img_channels = 1
+                self.img_size = 28
+                self.data_centered = 0
 
     def get_dataloader(self) -> DataLoader:
         if self.data == "cifar10":
@@ -52,6 +57,12 @@ class Config:
                 params,
                 lr=self.lr,
                 betas=tuple(self.betas),
+                weight_decay=self.weight_decay,
+            )
+        elif self.optimizer == "adam":
+            return Adam(
+                params,
+                lr=self.lr,
                 weight_decay=self.weight_decay,
             )
         else:
