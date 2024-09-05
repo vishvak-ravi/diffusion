@@ -3,11 +3,11 @@ import time
 from torch.utils.tensorboard import SummaryWriter
 
 from models import DiffusionNet
-from configs.base_config import Config
-from scripts.inference import heun_sampling as sample
+from configs.base_config import Config, DDPMConfig
+from scripts.sampling import DDPM_sampling as sample
 
 
-def train(model: DiffusionNet, config: Config, save: bool = True):
+def train(model: DiffusionNet, config: Config, writer, save: bool = True):
 
     dataloader = config.get_dataloader()
     loss_fn = config.get_loss_fn()
@@ -16,8 +16,6 @@ def train(model: DiffusionNet, config: Config, save: bool = True):
     steps = 0
 
     for epoch in range(config.epochs):
-        if steps > 3:
-            break
         for images, labels in dataloader:
             start = time.time()
             images, labels = images.to(device), labels.to(device)
@@ -26,19 +24,20 @@ def train(model: DiffusionNet, config: Config, save: bool = True):
                 model, images, labels, return_samples=10
             )
             loss.backward()
+            torch.nn.utils.clip_grad_norm_(model.parameters(), config.clip_grad)
             optimizer.step()
             steps += 1
             net_time = time.time() - start
+            writer.add_scalar("time", net_time, steps)
+            writer.add_scalar("loss", loss.item(), steps)
             if steps % config.log_interval == 0:
                 print(f"logging things now!")
-                # sampled_img, an_img_path = sample(model, config, track_path=True)
-                writer.add_scalar("loss", loss.item(), steps)
-                writer.add_scalar("time", net_time, steps)
+                sampled_img, an_img_path = sample(model, config, track_path=True)
                 writer.add_image("gt_img", gt_img, steps, dataformats="NCHW")
                 writer.add_image("noisy_gt", noisy_gt, steps, dataformats="NCHW")
                 writer.add_image("pred_img", pred_img, steps, dataformats="NCHW")
-                # writer.add_image("sampled_img", sampled_img, steps, dataformats="NCHW")
-                # writer.add_image("img_path", an_img_path, steps, dataformats="NCHW")
+                writer.add_image("sampled_img", sampled_img, steps, dataformats="NCHW")
+                writer.add_image("img_path", an_img_path, steps, dataformats="NCHW")
                 print(f"logged {steps} steps for loss/imgs")
             if steps % config.grad_params_save_interval == 0:
                 print(f"logging grad params now!")
@@ -63,28 +62,32 @@ def train(model: DiffusionNet, config: Config, save: bool = True):
                 #     }
                 # )
                 # wandb.watch(model, log="all", log_freq=1)
-            if steps > 3:
-                break
 
     if save:
-        torch.save(model.state_dict(), f"/mnt/meg/vishravi/diffusion/weights/{config.config_id}.pth")
+        torch.save(
+            model.state_dict(),
+            f"/mnt/meg/vishravi/diffusion/weights/{config.get_str()}.pth",
+        )
+        writer.close()
 
 
 if __name__ == "__main__":
     # Print PYTHONPATH
-    config = Config("/mnt/meg/vishravi/diffusion/src/configs/prime.json")
+    config = Config("/mnt/meg/vishravi/diffusion/src/configs/attn.json")
     # wandb.init(
     #     project="diffusion",
     #     config={
     #         "config_id": {config.config_id},
     #     },
     # )
-    writer = SummaryWriter(
-        log_dir=f"src/scripts/logs/{config.config_id}_{config.batch_size}"
-    )
+    writer = SummaryWriter(log_dir=f"src/scripts/logs/{time.asctime()}")
+    writer.add_text("config", config.get_str(), 0)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     torch.set_default_device(device)
     print(torch.cuda.get_device_name(device))
     model = DiffusionNet(config)
+    # model.load_state_dict(
+    #     torch.load("/mnt/meg/vishravi/diffusion/weights/default_128.pth")
+    # )
 
-    train(model, config)
+    train(model, config, writer)

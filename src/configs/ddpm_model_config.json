@@ -2,8 +2,9 @@
     "loss": "edm",
     "act": "silu",
     "nf": 128,
-    "num_res_blocks": 3,
+    "num_res_blocks": 2,
     "channel_multipliers": [
+        1,
         2,
         2,
         2
@@ -11,8 +12,8 @@
     "attn_resolutions": [
         16
     ],
-    "num_attn_heads": 16,
-    "skip_rescale": 0,
+    "num_attn_heads": 8,
+    "skip_rescale": 1,
     "conv_shortcut": 1,
     "down_with_conv": 1,
     "data": "cifar10",
@@ -21,8 +22,17 @@
     "optimizer": "adam",
     "lr": 0.0002,
     "weight_decay": 0.0001,
+    "clip_grad": 1,
     "config_id": "default",
     "log_interval": 50,
     "grad_params_save_interval": 10000,
-    "final_img_dim": 8
+    "img_dims": [
+        32,
+        32,
+        16,
+        8,
+        4
+    ],
+    "P_mean": -0.85,
+    "P_std": 1.35
 }

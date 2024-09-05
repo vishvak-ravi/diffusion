@@ -6,11 +6,12 @@ from torchvision.transforms import Compose, ToTensor, Normalize
 from torch.utils.data import DataLoader
 from torch.optim.optimizer import Optimizer
 from torch.optim import AdamW, Adam
-from models.losses import EDMLoss
+from models.losses import EDMLoss, DDPMLoss
 
 
 class Config:
     def __init__(self, json_path):
+        self.json_path = json_path
         with open(json_path, "r") as file:
             data = json.load(file)
             self.__dict__.update(
@@ -24,6 +25,18 @@ class Config:
                 self.img_channels = 1
                 self.img_size = 28
                 self.data_centered = 0
+            elif self.data == "cifar10":
+                print("cifar10")
+                self.img_channels = 3
+                self.img_size = 32
+                self.data_centered = 0
+
+            if self.loss == "ddpm":
+                self.ddpm_config = DDPMConfig(self.ddpm_config_path)
+
+    def get_str(self) -> str:
+        with open(self.json_path, "r") as file:
+            return file.read()
 
     def get_dataloader(self) -> DataLoader:
         if self.data == "cifar10":
@@ -42,12 +55,14 @@ class Config:
             )
         else:
             raise ValueError(f"Unknown data: {self.data}")
-        dataloader = DataLoader(dataset, batch_size=self.batch_size)
+        dataloader = DataLoader(dataset, batch_size=self.batch_size, drop_last=True)
         return dataloader
 
     def get_loss_fn(self) -> EDMLoss:
         if self.loss == "edm":
             return EDMLoss(self)
+        elif self.loss == "ddpm":
+            return DDPMLoss(self.ddpm_config)
         else:
             raise ValueError(f"Unknown loss: {self.loss}")
 
@@ -67,6 +82,18 @@ class Config:
             )
         else:
             raise ValueError(f"Unknown optimizer: {self.optimizer}")
+
+
+class DDPMConfig:
+    def __init__(self, json_path):
+        self.json_path = json_path
+        with open(json_path, "r") as file:
+            data = json.load(file)
+            self.__dict__.update(
+                json.loads(
+                    json.dumps(data), object_hook=lambda d: SimpleNamespace(**d)
+                ).__dict__
+            )
 
 
 # Example usage:

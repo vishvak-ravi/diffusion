@@ -49,20 +49,39 @@ class DDPMConv3x3(nn.Module):
 
 
 class ResNet_Block(nn.Module):
-    def __init__(self, act, ch_in, ch_out, ch_emb, skip_rescale, conv_shortcut) -> None:
+    def __init__(
+        self,
+        shape,
+        act,
+        ch_in,
+        ch_out,
+        ch_emb,
+        skip_rescale,
+        conv_shortcut=False,
+        num_heads=0,
+    ) -> None:
         super().__init__()
 
         self.skip_rescale = skip_rescale
         self.conv_shortcut = conv_shortcut
+        self.num_heads = num_heads
+        self.attn_emb_dim = shape[2] * shape[3]
 
         self.act = act
         self.conv0 = DDPMConv3x3(ch_in, ch_out)
-        self.conv1 = DDPMConv3x3(ch_out, ch_out)
+        if conv_shortcut:
+            self.conv1 = DDPMConv3x3(ch_out, ch_out)
+        else:
+            print(shape[1] * shape[2] * shape[3])
+            self.linear1 = nn.Linear(
+                in_features=shape[1] * shape[2] * shape[3],
+                out_features=shape[1] * shape[2] * shape[3],
+            )
         self.ch_in, self.ch_out = ch_in, ch_out
         if ch_in != ch_out:
             self.skip_conv = DDPMConv3x3(ch_in, ch_out)  # used for mismatched_dim
         self.linear0 = nn.Linear(in_features=ch_emb, out_features=ch_out)
-        self.linear1 = nn.Linear(in_features=ch_out, out_features=ch_out)
+
         self.groupnorm0 = nn.GroupNorm(
             num_channels=ch_in, num_groups=min(ch_in // 4, 32)
         )
@@ -70,6 +89,15 @@ class ResNet_Block(nn.Module):
             num_channels=ch_out, num_groups=min(ch_out // 4, 32)
         )
         self.dropout = nn.Dropout()
+
+        if self.num_heads:
+            self.norm2 = nn.GroupNorm(
+                num_channels=ch_out, num_groups=min(ch_out // 4, 32)
+            )
+            self.qkv = DDPMConv3x3(ch_out, ch_out * 3)
+            self.MHA = nn.MultiheadAttention(
+                embed_dim=self.attn_emb_dim, num_heads=num_heads
+            )
 
     def forward(self, x, temb):
         h = self.act(self.groupnorm0(x))
@@ -80,10 +108,30 @@ class ResNet_Block(nn.Module):
 
         h = self.act(self.groupnorm1(h))
         h = self.dropout(h)
-        h = self.conv1(h)
 
-        h += self.skip_conv(x) if self.ch_in != self.ch_out else x
-        return h / np.sqrt(2.0) if self.skip_rescale else h
+        if self.conv_shortcut:
+            h = self.conv1(h)
+        else:
+            h_shape = h.shape
+            h = self.linear1(h.reshape(h_shape[0], -1)).reshape(*h_shape)
+
+        x = h + self.skip_conv(x) if self.ch_in != self.ch_out else x
+        if self.skip_rescale:
+            x = x / np.sqrt(2.0)
+
+        with torch.autograd.set_detect_anomaly(True):
+            if self.num_heads:
+                x = self.norm2(x)
+                Q, K, V = torch.reshape(
+                    self.qkv(x), (x.shape[0], x.shape[1], x.shape[2] * x.shape[3], 3)
+                ).unbind(3)
+                img_dim = int(np.sqrt(self.attn_emb_dim))
+                x = x + self.MHA(Q, K, V, need_weights=False)[0].reshape(
+                    x.shape[0], x.shape[1], img_dim, img_dim
+                )
+                if self.skip_rescale:
+                    x = x / np.sqrt(2.0)
+        return x
 
 
 class Downsample(nn.Module):  # PP version uses a FIR filter...
@@ -105,11 +153,7 @@ class Upsample(nn.Module):  # PP version uses a FIR filter...
     def __init__(self, ch_in, with_conv: bool):
         super().__init__()
         C = ch_in
-        self.conv = DDPMConv3x3(C, C)
-        self.up = nn.Upsample(scale_factor=2)
+        self.up_conv = nn.ConvTranspose2d(C, C, 4, stride=2, padding=1)
 
     def forward(self, x):
-        x = self.up(x)
-        if self.conv is not None:
-            x = self.conv(x)
-        return x
+        return self.up_conv(x)

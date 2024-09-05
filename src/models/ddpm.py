@@ -20,10 +20,12 @@ class DiffusionNet(nn.Module):
         self.num_res_blocks = config.num_res_blocks
         self.attn_resolutions = config.attn_resolutions
         self.nf = config.nf  # num features
+        self.num_attn_heads = config.num_attn_heads
         self.skip_rescale = config.skip_rescale
         self.conv_shortcut = config.conv_shortcut
         self.down_with_conv = config.down_with_conv
         self.img_channels = config.img_channels
+        self.img_dims = config.img_dims
 
         if config.act == "silu":
             self.act = nn.SiLU()
@@ -33,14 +35,6 @@ class DiffusionNet(nn.Module):
                 self.channel_sizes[i] * self.channel_multipliers[i]
             )
         self.num_resolutions = len(self.channel_sizes)
-
-        self.img_dims = [config.img_size]
-        target_dim = 1
-        while target_dim < config.img_size:
-            target_dim *= 2
-        for i in range(self.num_resolutions - 1):
-            target_dim = target_dim // 2
-            self.img_dims.append(target_dim)
 
         self.t_emb_linear = nn.Sequential(
             nn.Linear(self.nf, 4 * self.nf),
@@ -58,12 +52,6 @@ class DiffusionNet(nn.Module):
                             self.img_channels,
                             self.nf,
                         ),
-                        nn.Upsample(
-                            size=(
-                                power_of_two_img_size,
-                                power_of_two_img_size,
-                            )
-                        ),
                     ]
                 ),
                 "resnetblocks": nn.ModuleList(
@@ -71,6 +59,12 @@ class DiffusionNet(nn.Module):
                         nn.ModuleList(
                             [
                                 ResNet_Block(
+                                    (
+                                        config.batch_size,
+                                        self.channel_sizes[i],
+                                        self.img_dims[i + 1],
+                                        self.img_dims[i + 1],
+                                    ),
                                     self.act,
                                     self.channel_sizes[i],
                                     self.channel_sizes[
@@ -78,7 +72,12 @@ class DiffusionNet(nn.Module):
                                     ],
                                     self.nf * 4,
                                     self.skip_rescale,
-                                    self.conv_shortcut,
+                                    conv_shortcut=True,
+                                    num_heads=(
+                                        self.num_attn_heads
+                                        if self.img_dims[i] in self.attn_resolutions
+                                        else 0
+                                    ),
                                 )
                                 for block_idx in range(self.num_res_blocks)
                             ]
@@ -102,12 +101,34 @@ class DiffusionNet(nn.Module):
         self.bridge = nn.ModuleDict(
             {
                 "resnet_1": ResNet_Block(
+                    (
+                        config.batch_size,
+                        self.channel_sizes[-1],
+                        self.img_dims[-1],
+                        self.img_dims[-1],
+                    ),
                     self.act,
                     ch_in=self.channel_sizes[-1],
                     ch_out=self.channel_sizes[-1],
                     ch_emb=self.nf * 4,
                     skip_rescale=self.skip_rescale,
-                    conv_shortcut=self.conv_shortcut,
+                    num_heads=self.num_attn_heads,
+                    conv_shortcut=False,
+                ),
+                "resnet_2": ResNet_Block(
+                    (
+                        config.batch_size,
+                        self.channel_sizes[-1],
+                        self.img_dims[-1],
+                        self.img_dims[-1],
+                    ),
+                    self.act,
+                    ch_in=self.channel_sizes[-1],
+                    ch_out=self.channel_sizes[-1],
+                    ch_emb=self.nf * 4,
+                    skip_rescale=self.skip_rescale,
+                    num_heads=self.num_attn_heads,
+                    conv_shortcut=False,
                 ),
             }
         )
@@ -120,12 +141,23 @@ class DiffusionNet(nn.Module):
                         nn.ModuleList(
                             [
                                 ResNet_Block(
+                                    (
+                                        config.batch_size,
+                                        2 * self.channel_sizes[i + (block_idx == 0)],
+                                        self.img_dims[i + 1],
+                                        self.img_dims[i + 1],
+                                    ),
                                     self.act,
                                     2 * self.channel_sizes[i + (block_idx == 0)],
                                     self.channel_sizes[i],
                                     self.nf * 4,
                                     self.skip_rescale,
-                                    self.conv_shortcut,
+                                    conv_shortcut=True,
+                                    num_heads=(
+                                        self.num_attn_heads
+                                        if self.img_dims[i] in self.attn_resolutions
+                                        else 0
+                                    ),
                                 )
                                 for block_idx in range(self.num_res_blocks + 1)
                             ]
@@ -169,6 +201,7 @@ class DiffusionNet(nn.Module):
 
         h = hs[-1]
         h = self.bridge["resnet_1"](h, t_emb)
+        h = self.bridge["resnet_2"](h, t_emb)
 
         # upsample
         for i_level in range(self.num_resolutions - 1):
@@ -180,4 +213,4 @@ class DiffusionNet(nn.Module):
 
         h = self.final_conv(h)
 
-        return h[:, :, 2:30, 2:30]
+        return h
