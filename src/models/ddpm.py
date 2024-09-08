@@ -26,6 +26,7 @@ class DiffusionNet(nn.Module):
         self.down_with_conv = config.down_with_conv
         self.img_channels = config.img_channels
         self.img_dims = config.img_dims
+        self.dropout = config.dropout
 
         if config.act == "silu":
             self.act = nn.SiLU()
@@ -75,9 +76,10 @@ class DiffusionNet(nn.Module):
                                     conv_shortcut=True,
                                     num_heads=(
                                         self.num_attn_heads
-                                        if self.img_dims[i] in self.attn_resolutions
+                                        if self.img_dims[i + 1] in self.attn_resolutions
                                         else 0
                                     ),
+                                    dropout=self.dropout,
                                 )
                                 for block_idx in range(self.num_res_blocks)
                             ]
@@ -114,6 +116,7 @@ class DiffusionNet(nn.Module):
                     skip_rescale=self.skip_rescale,
                     num_heads=self.num_attn_heads,
                     conv_shortcut=False,
+                    dropout=self.dropout,
                 ),
                 "resnet_2": ResNet_Block(
                     (
@@ -129,6 +132,7 @@ class DiffusionNet(nn.Module):
                     skip_rescale=self.skip_rescale,
                     num_heads=self.num_attn_heads,
                     conv_shortcut=False,
+                    dropout=self.dropout,
                 ),
             }
         )
@@ -158,6 +162,7 @@ class DiffusionNet(nn.Module):
                                         if self.img_dims[i] in self.attn_resolutions
                                         else 0
                                     ),
+                                    dropout=self.dropout,
                                 )
                                 for block_idx in range(self.num_res_blocks + 1)
                             ]

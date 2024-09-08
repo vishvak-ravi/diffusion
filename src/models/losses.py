@@ -45,21 +45,22 @@ class DDPMLoss(torch.nn.Module):
         self.beta_min = DDPM_config.beta_min
         self.beta_max = DDPM_config.beta_max
         self.T = DDPM_config.T
-        self.betas = torch.arange(
-            self.beta_min, self.beta_max, (self.beta_max - self.beta_min) // self.T
-        )
+        self.betas = torch.linspace(self.beta_min, self.beta_max, self.T)
         self.alphas = [1 - self.beta_min]
         for t in range(1, self.T):
-            alpha = self.alphas[-1] * (1 - self.beta_min[t])
+            alpha = self.alphas[-1] * (1 - self.betas[t])
             self.alphas.append(alpha)
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        self.alphas = torch.Tensor(self.alphas).to(device=device)
 
-    def forward(self, net, images, labels=None):
-        sampled_timesteps = torch.randint(1, self.T, images.shape[0])
+    def forward(self, net, images, labels=None, return_samples: int = 0):
+        sampled_timesteps = torch.randint(1, self.T, (images.shape[0],))
         sampled_noise = torch.randn([images.shape[0], 1, 1, 1], device=images.device)
-        sampled_alphas = self.alphas[sampled_timesteps]
+        sampled_alphas = torch.index_select(self.alphas, 0, sampled_timesteps)
         noisy_latent = (
-            torch.sqrt(sampled_alphas) * images
-            + torch.sqrt(1 - sampled_alphas) * sampled_noise
+            torch.sqrt(sampled_alphas.view(images.shape[0], 1, 1, 1)) * images
+            + torch.sqrt(1 - sampled_alphas.view(images.shape[0], 1, 1, 1))
+            * sampled_noise
         )
         loss = torch.norm(net(noisy_latent, sampled_timesteps) - sampled_noise) ** 2
         return loss

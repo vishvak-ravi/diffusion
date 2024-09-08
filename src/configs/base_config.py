@@ -1,9 +1,9 @@
 import json
 from types import SimpleNamespace
 
-from torchvision.datasets import CIFAR10, MNIST
-from torchvision.transforms import Compose, ToTensor, Normalize
-from torch.utils.data import DataLoader
+from torchvision.datasets import CIFAR10, MNIST, Flowers102
+from torchvision.transforms import Compose, ToTensor, Normalize, Lambda
+from torch.utils.data import DataLoader, Subset
 from torch.optim.optimizer import Optimizer
 from torch.optim import AdamW, Adam
 from models.losses import EDMLoss, DDPMLoss
@@ -43,18 +43,23 @@ class Config:
             dataset = CIFAR10(
                 root="data/",
                 train=True,
-                download=True,
-                transform=Compose([ToTensor(), Normalize(0.5, 0.5)]),
+                download=False,
+                transform=Compose([ToTensor(), Lambda(lambda x: x * 2 - 1)]),
             )
         elif self.data == "mnist":
             dataset = MNIST(
                 root="data/",
                 train=True,
-                download=True,
+                download=False,
                 transform=Compose([ToTensor(), Normalize(0.5, 0.5)]),
             )
         else:
             raise ValueError(f"Unknown data: {self.data}")
+        if self.classes != -1:
+            dataset = Subset(
+                dataset,
+                [i for i in range(len(dataset)) if dataset.targets[i] in self.classes],
+            )
         dataloader = DataLoader(dataset, batch_size=self.batch_size, drop_last=True)
         return dataloader
 

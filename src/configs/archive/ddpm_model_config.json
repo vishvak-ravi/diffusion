@@ -1,5 +1,5 @@
 {
-    "loss": "edm",
+    "loss": "ddpm",
     "act": "silu",
     "nf": 128,
     "num_res_blocks": 2,
@@ -34,5 +34,6 @@
         4
     ],
     "P_mean": -0.85,
-    "P_std": 1.35
+    "P_std": 1.35,
+    "ddpm_config_path": "/mnt/meg/vishravi/diffusion/src/configs/ddpm_config.json"
 }

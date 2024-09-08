@@ -57,6 +57,7 @@ class ResNet_Block(nn.Module):
         ch_out,
         ch_emb,
         skip_rescale,
+        dropout,
         conv_shortcut=False,
         num_heads=0,
     ) -> None:
@@ -88,7 +89,7 @@ class ResNet_Block(nn.Module):
         self.groupnorm1 = nn.GroupNorm(
             num_channels=ch_out, num_groups=min(ch_out // 4, 32)
         )
-        self.dropout = nn.Dropout()
+        self.dropout = nn.Dropout(dropout)
 
         if self.num_heads:
             self.norm2 = nn.GroupNorm(

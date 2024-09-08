@@ -15,17 +15,15 @@ def train(model: DiffusionNet, config: Config, writer, save: bool = True):
 
     steps = 0
 
-    for epoch in range(config.epochs):
+    for _ in range(config.epochs):
         for images, labels in dataloader:
             start = time.time()
             images, labels = images.to(device), labels.to(device)
             optimizer.zero_grad()
-            loss, gt_img, noisy_gt, pred_img = loss_fn(
-                model, images, labels, return_samples=10
-            )
+            loss = loss_fn(model, images, labels, return_samples=10)
             loss.backward()
             torch.nn.utils.clip_grad_norm_(model.parameters(), config.clip_grad)
-            optimizer.step()
+            optimizer.step()ff
             steps += 1
             net_time = time.time() - start
             writer.add_scalar("time", net_time, steps)
@@ -33,9 +31,9 @@ def train(model: DiffusionNet, config: Config, writer, save: bool = True):
             if steps % config.log_interval == 0:
                 print(f"logging things now!")
                 sampled_img, an_img_path = sample(model, config, track_path=True)
-                writer.add_image("gt_img", gt_img, steps, dataformats="NCHW")
-                writer.add_image("noisy_gt", noisy_gt, steps, dataformats="NCHW")
-                writer.add_image("pred_img", pred_img, steps, dataformats="NCHW")
+                # writer.add_image("gt_img", gt_img, steps, dataformats="NCHW")
+                # writer.add_image("noisy_gt", noisy_gt, steps, dataformats="NCHW")
+                # writer.add_image("pred_img", pred_img, steps, dataformats="NCHW")
                 writer.add_image("sampled_img", sampled_img, steps, dataformats="NCHW")
                 writer.add_image("img_path", an_img_path, steps, dataformats="NCHW")
                 print(f"logged {steps} steps for loss/imgs")
@@ -73,7 +71,9 @@ def train(model: DiffusionNet, config: Config, writer, save: bool = True):
 
 if __name__ == "__main__":
     # Print PYTHONPATH
-    config = Config("/mnt/meg/vishravi/diffusion/src/configs/attn.json")
+    config = Config(
+        "/mnt/meg/vishravi/diffusion/src/configs/cifar10_ddpm_single_class.json"
+    )
     # wandb.init(
     #     project="diffusion",
     #     config={

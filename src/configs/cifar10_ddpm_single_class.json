@@ -1,0 +1,42 @@
+{
+    "loss": "ddpm",
+    "act": "silu",
+    "nf": 128,
+    "num_res_blocks": 2,
+    "channel_multipliers": [
+        1,
+        2,
+        2,
+        2
+    ],
+    "attn_resolutions": [
+        16
+    ],
+    "dropout": 0.1,
+    "num_attn_heads": 8,
+    "skip_rescale": 1,
+    "conv_shortcut": 1,
+    "down_with_conv": 1,
+    "data": "cifar10",
+    "epochs": 6250,
+    "img_shape": 32,
+    "batch_size": 128,
+    "optimizer": "adam",
+    "lr": 0.0002,
+    "weight_decay": 0.0001,
+    "clip_grad": 1,
+    "config_id": "default",
+    "log_interval": 5000,
+    "grad_params_save_interval": 10000,
+    "img_dims": [
+        32,
+        32,
+        16,
+        8,
+        4
+    ],
+    "classes": [
+        1
+    ],
+    "ddpm_config_path": "/mnt/meg/vishravi/diffusion/src/configs/ddpm_config.json"
+}
