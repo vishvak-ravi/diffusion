@@ -19,22 +19,7 @@ def get_timestep_embedding(timesteps, embedding_dim):
     return emb
 
 
-def determine_padding(input_img_size):
-    if (input_img_size & (input_img_size - 1)) != 0:
-        power_of_two = 1
-        while power_of_two < input_img_size:
-            power_of_two *= 2
-        if input_img_size % 2 != 0:
-            raise ValueError("no odd images allowed")
-        x_pad = power_of_two - input_img_size
-        y_pad = power_of_two - input_img_size
-    else:
-        x_pad = 0
-        y_pad = 0
-    return x_pad, y_pad
-
-
-class DDPMConv3x3(nn.Module):
+class Conv3x3(nn.Module):
     def __init__(self, channel_in, channel_out, stride=1, padding=None):
         super().__init__()
         if padding == None:
@@ -69,9 +54,9 @@ class ResNet_Block(nn.Module):
         self.attn_emb_dim = shape[2] * shape[3]
 
         self.act = act
-        self.conv0 = DDPMConv3x3(ch_in, ch_out)
+        self.conv0 = Conv3x3(ch_in, ch_out)
         if conv_shortcut:
-            self.conv1 = DDPMConv3x3(ch_out, ch_out)
+            self.conv1 = Conv3x3(ch_out, ch_out)
         else:
             print(shape[1] * shape[2] * shape[3])
             self.linear1 = nn.Linear(
@@ -80,7 +65,7 @@ class ResNet_Block(nn.Module):
             )
         self.ch_in, self.ch_out = ch_in, ch_out
         if ch_in != ch_out:
-            self.skip_conv = DDPMConv3x3(ch_in, ch_out)  # used for mismatched_dim
+            self.skip_conv = Conv3x3(ch_in, ch_out)  # used for mismatched_dim
         self.linear0 = nn.Linear(in_features=ch_emb, out_features=ch_out)
 
         self.groupnorm0 = nn.GroupNorm(
@@ -95,7 +80,7 @@ class ResNet_Block(nn.Module):
             self.norm2 = nn.GroupNorm(
                 num_channels=ch_out, num_groups=min(ch_out // 4, 32)
             )
-            self.qkv = DDPMConv3x3(ch_out, ch_out * 3)
+            self.qkv = Conv3x3(ch_out, ch_out * 3)
             self.MHA = nn.MultiheadAttention(
                 embed_dim=self.attn_emb_dim, num_heads=num_heads
             )
@@ -141,7 +126,7 @@ class Downsample(nn.Module):  # PP version uses a FIR filter...
         self.with_conv = with_conv
         padding = (1, 1)
         self.down = (
-            DDPMConv3x3(channel_in=ch_in, channel_out=ch_out, stride=2, padding=padding)
+            Conv3x3(channel_in=ch_in, channel_out=ch_out, stride=2, padding=padding)
             if with_conv
             else nn.AvgPool2d(2, stride=2, padding=1)
         )

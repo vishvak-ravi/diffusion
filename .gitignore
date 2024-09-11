@@ -1,7 +1,5 @@
+archive/
 data/
-*.pyc
-events*
-*.cpython.*
-*.cpython
-*.pth
-src/models/losses.py
+.vscode/
+logs/
+weights/

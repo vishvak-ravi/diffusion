@@ -35,8 +35,7 @@ class Config:
                 self.ddpm_config = DDPMConfig(self.ddpm_config_path)
 
     def get_str(self) -> str:
-        with open(self.json_path, "r") as file:
-            return file.read()
+        return f"{self.data}_{self.loss}"
 
     def get_dataloader(self) -> DataLoader:
         if self.data == "cifar10":

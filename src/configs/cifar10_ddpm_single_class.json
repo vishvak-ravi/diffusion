@@ -26,7 +26,9 @@
     "weight_decay": 0.0001,
     "clip_grad": 1,
     "config_id": "default",
-    "log_interval": 5000,
+    "log_imgs": 100,
+    "log_sampled": 5000,
+    "save_weights": 25000,
     "grad_params_save_interval": 10000,
     "img_dims": [
         32,
